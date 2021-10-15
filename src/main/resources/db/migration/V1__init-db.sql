@@ -1,0 +1,9 @@
+CREATE TABLE USERS (
+    id INT NOT NULL AUTO_INCREMENT,
+    username VARCHAR2(100) NOT NULL,
+    password VARCHAR2(256) NOT NULL,
+    deposit BIGINT NOT NULL,
+    role VARCHAR2(50) NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE (username)
+);
