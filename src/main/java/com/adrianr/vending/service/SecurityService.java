@@ -22,10 +22,7 @@ public class SecurityService {
         log.info("Request from {}", getPrincipalUsername());
         return userRepository.findByUsername(getPrincipalUsername())
                 .map(User::getId)
-                .orElseThrow(() -> {
-                    log.info("Not Here ?");
-                    return new ResponseStatusException(HttpStatus.UNAUTHORIZED);
-                });
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
     }
 
     private String getPrincipalUsername() {

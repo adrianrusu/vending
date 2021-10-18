@@ -25,7 +25,8 @@ public class ProductService {
     }
 
     public Product getProduct(Integer id) {
-        return productRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
+        return productRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
     }
 
     public Product createProduct(Product product) {
@@ -40,7 +41,7 @@ public class ProductService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Product id does not exist");
         }
         if (!securityService.getLoggedUserId().equals(dbProduct.get().getSellerId())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
 
         product.setSellerId(securityService.getLoggedUserId());
@@ -54,7 +55,7 @@ public class ProductService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Product id does not exist");
         }
         if (!securityService.getLoggedUserId().equals(dbProduct.get().getSellerId())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
 
         productRepository.deleteById(productId);

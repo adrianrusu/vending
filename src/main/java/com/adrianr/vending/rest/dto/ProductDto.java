@@ -1,6 +1,7 @@
 package com.adrianr.vending.rest.dto;
 
 import com.adrianr.vending.domain.Product;
+import lombok.Builder;
 import lombok.Data;
 
 import javax.validation.constraints.Min;
@@ -8,6 +9,7 @@ import javax.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 @Data
+@Builder
 public class ProductDto {
 
     @NotNull

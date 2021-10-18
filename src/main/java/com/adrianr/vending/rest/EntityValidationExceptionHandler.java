@@ -28,7 +28,6 @@ public class EntityValidationExceptionHandler extends ResponseEntityExceptionHan
         body.put("timestamp", new Date());
         body.put("status", status.value());
 
-        //Get all errors
         Map<String, String> errors = ex.getBindingResult().getFieldErrors()
                 .stream()
                 .collect(Collectors.toMap(FieldError::getField, DefaultMessageSourceResolvable::getDefaultMessage));

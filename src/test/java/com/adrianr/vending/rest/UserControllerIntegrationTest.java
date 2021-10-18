@@ -12,12 +12,14 @@ import org.springframework.boot.jdbc.EmbeddedDatabaseConnection;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
+import javax.transaction.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
@@ -31,7 +33,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @AutoConfigureTestDatabase(connection = EmbeddedDatabaseConnection.H2)
-class UserControllerTest {
+class UserControllerIntegrationTest {
+
+    private static final String BUYER_USERNAME = "buyer";
 
     @Autowired
     private MockMvc mockMvc;
@@ -43,7 +47,7 @@ class UserControllerTest {
     private UserRepository userRepository;
 
     @Test
-    void givenNoAuthentication_WhenCallingGetAllUsers_ExpectForbiddenResponseStatus() throws Exception {
+    void givenNoAuthentication_WhenCallingGetAllUsers_ThenExpectForbiddenResponseStatus() throws Exception {
         mockMvc.perform(get("/users"))
                 .andDo(print())
                 .andExpect(status().isUnauthorized());
@@ -51,14 +55,14 @@ class UserControllerTest {
 
     @Test
     @WithMockUser
-    void givenAuthentication_WhenCallingGetAllUsers_ExpectOKResponseStatusAndResultList() throws Exception {
+    void givenAuthentication_WhenCallingGetAllUsers_ThenExpectOKResponseStatusAndResultList() throws Exception {
         List<User> result = userRepository.findAll();
 
         mockMvc.perform(get("/users"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$.length()").value(result.size()))
                 .andExpect(jsonPath("$.[0].id").value(result.get(0).getId()))
                 .andExpect(jsonPath("$.[0].username").value(result.get(0).getUsername()))
                 .andExpect(jsonPath("$.[0].role").value(result.get(0).getRole().getName()))
@@ -67,7 +71,7 @@ class UserControllerTest {
     }
 
     @Test
-    void givenNotAuthenticated_WhenCallingGetUserById_ExpectForbiddenResponseStatus() throws Exception {
+    void givenNotAuthenticated_WhenCallingGetUserById_ThenExpectForbiddenResponseStatus() throws Exception {
         mockMvc.perform(get("/users/1"))
                 .andDo(print())
                 .andExpect(status().isUnauthorized());
@@ -75,8 +79,9 @@ class UserControllerTest {
 
     @Test
     @WithMockUser
-    void givenAuthentication_WhenCallingGetUserById_ExpectOKResponseStatusAndResult() throws Exception {
-        User result = userRepository.findById(8).get();
+    @Transactional
+    void givenAuthentication_WhenCallingGetUserById_ThenExpectOKResponseStatusAndResult() throws Exception {
+        User result = userRepository.getById(8);
 
         mockMvc.perform(get("/users/8"))
                 .andExpect(status().isOk())
@@ -90,19 +95,19 @@ class UserControllerTest {
 
     @Test
     @WithMockUser
-    void givenAuthentication_WhenCallingGetUserByNonExistingId_ExpectNotFoundResponseStatus() throws Exception {
+    void givenAuthentication_WhenCallingGetUserByNonExistingId_ThenExpectNotFoundResponseStatus() throws Exception {
         mockMvc.perform(get("/users/-1"))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void givenNoPayload_WhenCallingCreateUser_ExpectBadResponseStatus() throws Exception {
+    void givenNoPayload_WhenCallingCreateUser_ThenExpectBadResponseStatus() throws Exception {
         mockMvc.perform(post("/users"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void givenInvalidPayload_WhenCallingCreateUser_ExpectBadResponseStatus() throws Exception {
+    void givenInvalidPayload_WhenCallingCreateUser_ThenExpectBadResponseStatus() throws Exception {
         mockMvc.perform(post("/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emptyMap()))
@@ -116,21 +121,21 @@ class UserControllerTest {
     }
 
     @Test
-    void givenInvalidRoleInPayload_WhenCallingCreateUser_ExpectBadResponseStatus() throws Exception {
-        HashMap<String, String> userWithInvalidRole = new HashMap<>();
-        userWithInvalidRole.put("username", "abc");
-        userWithInvalidRole.put("password", "abc");
-        userWithInvalidRole.put("role", "abc");
+    void givenInvalidRoleInPayload_WhenCallingCreateUser_ThenExpectBadResponseStatus() throws Exception {
+        HashMap<String, String> payload = new HashMap<>();
+        payload.put("username", "abc");
+        payload.put("password", "abc");
+        payload.put("role", "abc");
 
         mockMvc.perform(post("/users")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(userWithInvalidRole)))
+                                .content(objectMapper.writeValueAsString(payload)))
                 .andDo(print())
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void givenUsernameThatAlreadyExists_WhenCallingCreateUser_ExpectConflictResponseStatus() throws Exception {
+    void givenUsernameThatAlreadyExists_WhenCallingCreateUser_ThenExpectConflictResponseStatus() throws Exception {
         CreateUserDto payload = CreateUserDto.builder()
                 .username("buyer")
                 .password("test-password")
@@ -146,9 +151,9 @@ class UserControllerTest {
 
     @Test
     @DirtiesContext
-    void givenValidPayload_WhenCallingCreateUser_ExpectOkResponseStatusAndPayloadWithIdAndNoPassword() throws Exception {
+    void givenValidPayload_WhenCallingCreateUser_ThenExpectOkResponseStatusAndPayloadWithIdAndNoPassword() throws Exception {
         CreateUserDto payload = CreateUserDto.builder()
-                .username("test-buyer")
+                .username("test-user")
                 .password("test-password")
                 .role(UserRole.BUYER)
                 .build();
@@ -157,6 +162,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(payload)))
                 .andExpect(status().isCreated())
+                .andExpect(header().exists(HttpHeaders.LOCATION))
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.username").value(payload.getUsername()))
                 .andExpect(jsonPath("$.role").value(UserRole.BUYER.getName()))
@@ -165,7 +171,7 @@ class UserControllerTest {
     }
 
     @Test
-    void givenNoAuth_WhenCallingUpdateUser_ExpectUnauthorizedResponseStatus() throws Exception {
+    void givenNoAuth_WhenCallingUpdateUser_ThenExpectUnauthorizedResponseStatus() throws Exception {
         mockMvc.perform(put("/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .contentType(objectMapper.writeValueAsString(emptyMap())))
@@ -175,7 +181,7 @@ class UserControllerTest {
 
     @Test
     @WithMockUser
-    void givenAuthAndInvalidPayload_WhenCallingUpdateUser_ExpectBadResponseStatus() throws Exception {
+    void givenAuthAndInvalidPayload_WhenCallingUpdateUser_ThenExpectBadResponseStatus() throws Exception {
         mockMvc.perform(put("/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(emptyMap())))
@@ -186,10 +192,11 @@ class UserControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "buyer")
     @DirtiesContext
-    void givenAuthAndNoPasswordInPayload_WhenCallingUpdateUser_ExpectOkResponseStatusAndSamePassword() throws Exception {
-        String initialPassword = userRepository.findById(8).get().getPassword();
+    @Transactional
+    @WithMockUser(username = BUYER_USERNAME)
+    void givenAuthAndNoPasswordInPayload_WhenCallingUpdateUser_ThenExpectOkResponseStatusAndSamePassword() throws Exception {
+        String initialPassword = userRepository.getById(8).getPassword();
         String expectedUsername = "bob";
 
         mockMvc.perform(put("/users")
@@ -200,17 +207,17 @@ class UserControllerTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value(expectedUsername))
-                .andExpect(jsonPath("$.deposit").value(0))
+                .andExpect(jsonPath("$.deposit").value(15))
                 .andExpect(jsonPath("$.role").value(UserRole.BUYER.getName()));
 
-        User updatedUser = userRepository.findById(8).get();
+        User updatedUser = userRepository.getById(8);
         assertEquals(initialPassword, updatedUser.getPassword());
         assertEquals(expectedUsername, updatedUser.getUsername());
     }
 
     @Test
-    @WithMockUser(username = "buyer")
-    void givenAuthAndSameUsernameAsExistingUser_WhenCallingUpdateUser_ExpectConflictingResponseStatus() throws Exception {
+    @WithMockUser(username = BUYER_USERNAME)
+    void givenAuthAndSameUsernameAsExistingUser_WhenCallingUpdateUser_ThenExpectConflictingResponseStatus() throws Exception {
         String expectedUsername = "seller";
 
         mockMvc.perform(put("/users")
@@ -223,9 +230,11 @@ class UserControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "buyer")
-    void givenAuthAndDifferentPassword_WhenCallingUpdateUser_ExpectOkResponseStatusAndDifferentPassword() throws Exception {
-        User initialUser = userRepository.findById(8).get();
+    @Transactional
+    @WithMockUser(username = BUYER_USERNAME)
+    void givenAuthAndDifferentPassword_WhenCallingUpdateUser_ThenExpectOkResponseStatusAndDifferentPassword() throws Exception {
+        User initialUser = userRepository.getById(8);
+        String initialPassword = initialUser.getPassword();
         String newPassword = "bob";
 
         mockMvc.perform(put("/users")
@@ -237,25 +246,25 @@ class UserControllerTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value(initialUser.getUsername()))
-                .andExpect(jsonPath("$.deposit").value(0))
+                .andExpect(jsonPath("$.deposit").value(15))
                 .andExpect(jsonPath("$.role").value(UserRole.BUYER.getName()));
 
-        User updatedUser = userRepository.findById(8).get();
+        User updatedUser = userRepository.getById(8);
         assertEquals(initialUser.getUsername(), updatedUser.getUsername());
-        assertNotEquals(initialUser.getPassword(), updatedUser.getPassword());
+        assertNotEquals(initialPassword, updatedUser.getPassword());
     }
 
     @Test
-    void givenNoAuth_WhenCallingDeleteUser_ExpectUnauthorizedResponseStatus() throws Exception {
+    void givenNoAuth_WhenCallingDeleteUser_ThenExpectUnauthorizedResponseStatus() throws Exception {
         mockMvc.perform(delete("/users"))
                 .andDo(print())
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    @WithMockUser(username = "buyer")
+    @WithMockUser(username = BUYER_USERNAME)
     @DirtiesContext
-    void givenAuth_WhenCallingDeleteUser_ExpectOkStatusAndUserNotPresentInDatabase() throws Exception {
+    void givenAuth_WhenCallingDeleteUser_ThenExpectOkStatusAndUserNotPresentInDatabase() throws Exception {
         mockMvc.perform(delete("/users"))
                 .andDo(print())
                 .andExpect(status().isOk());

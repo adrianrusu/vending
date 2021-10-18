@@ -11,9 +11,16 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Arrays.asList;
 
 @Service
 public class VendingService {
+
+    private final List<Integer> availableCoins = asList(100, 50, 20, 10 ,5);
 
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
@@ -36,7 +43,6 @@ public class VendingService {
     }
 
     public BuyResponseDto buy(Integer productId, Integer amount) {
-        User user = userRepository.getById(securityService.getLoggedUserId());
         var productOptional = productRepository.findById(productId);
         if (productOptional.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Product id does not exist");
@@ -47,7 +53,9 @@ public class VendingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Requested amount is greater than stock");
         }
 
+        User user = userRepository.getById(securityService.getLoggedUserId());
         BigDecimal totalAmount = product.getCost().multiply(BigDecimal.valueOf(amount));
+
         if (user.getDeposit().compareTo(totalAmount) < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not enough funds to complete the order");
         }
@@ -69,11 +77,26 @@ public class VendingService {
                 .build();
     }
 
-    public User reset() {
+    public Map<Integer, Integer> reset() {
         User user = userRepository.getById(securityService.getLoggedUserId());
 
+        var change = calculateUserChange(user);
         user.setDeposit(BigDecimal.ZERO);
-        return userRepository.save(user);
+        userRepository.save(user);
+
+        return change;
+    }
+
+    private Map<Integer, Integer> calculateUserChange(User user) {
+        BigDecimal deposit = user.getDeposit();
+
+        Map<Integer, Integer> change = new HashMap<>();
+        for (Integer availableCoin : availableCoins) {
+            change.put(availableCoin, deposit.divide(BigDecimal.valueOf(availableCoin), 0, RoundingMode.DOWN).intValue());
+            deposit = deposit.remainder(BigDecimal.valueOf(availableCoin));
+        }
+
+        return change;
     }
 
 }

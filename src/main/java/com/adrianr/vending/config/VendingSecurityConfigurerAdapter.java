@@ -51,6 +51,7 @@ public class VendingSecurityConfigurerAdapter extends WebSecurityConfigurerAdapt
                 .and()
                 .authorizeRequests()
                 .antMatchers(HttpMethod.POST, "/users").permitAll()
+                .antMatchers(HttpMethod.GET, "/products/**").permitAll()
                 .antMatchers("/h2-console/**").permitAll()
                 .anyRequest().authenticated();
     }
